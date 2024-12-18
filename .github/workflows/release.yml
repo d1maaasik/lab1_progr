@@ -3,7 +3,7 @@ name: 'C++ CI'
 on:
   push:
     branches:
-      - lab1
+      - master
       - feature/github_actions
 # ветка lab1 будет запущен при push
 jobs:
@@ -11,16 +11,16 @@ jobs:
   create_release: 
     name: Create release
     runs-on: ubuntu-latest # определяет тип контейнера для выполнения задачи.
-    outputs: # Определяет выходные параметры задачи.
+    outputs: # определяет выходные параметры задачи.
       upload_url: ${{ steps.create_release.outputs.upload_url }} # ссылается входной параметр шага Create release
-    permissions: write-all # Определяет разрешения для задачи. Разрешение, которое предоставляет задаче полный доступ на запись к репозиторию и его содержимому
+    permissions: write-all # определяет разрешения для задачи. разрешение, которое предоставляет задаче полный доступ на запись к репозиторию и его содержимому
     steps:
       - name: Create release
         id: create_release # присваивает уникальный идентификатор шагу
         uses: actions/create-release@v1
-        env: # Определяет переменные окружения.
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Это имя переменной окружения 
-        with: # Определяет параметры для действия.
+        env: # определяет переменные окружения.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # это имя переменной окружения 
+        with: # определяет параметры для действия.
           tag_name: ${{ github.run_number}} # указывает тег для создаваемого релиза
           release_name: Release ${{ github.run_number }} # указывает имя для создаваемого релиза
           draft: false # указывает, является ли релиз черновиком
