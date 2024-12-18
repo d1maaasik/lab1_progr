@@ -8,17 +8,38 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     permissions: write-all
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]  # Указываем операционные системы
+
     steps:
       - uses: actions/checkout@v3
         with:
           submodules: true
-      - run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
-      - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
-      - run: cmake --build .
-      - run: cmake --build . --target test
-      - run: cmake --build . --target package
+
+      - name: Install dependencies
+        run: |
+          if [ ${{ runner.os }} == 'Linux' ]; then
+            sudo apt-get update && sudo apt-get install libboost-test-dev -y
+          elif [ ${{ runner.os }} == 'macOS' ]; then
+            brew install boost  # Убедитесь, что Homebrew установлен на macOS
+          fi
+
+      - name: Configure CMake
+        run: cmake . -DPATCH_VERSION=${{ github.run_number }}
+
+      - name: Build
+        run: cmake --build .
+
+      - name: Run Tests
+        run: cmake --build . --target test
+
+      - name: Package
+        run: cmake --build . --target package
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1
@@ -29,6 +50,7 @@ jobs:
           release_name: Release ${{ github.run_number }}
           draft: false
           prerelease: false
+
       - name: Upload Release Asset
         id: upload-release-asset
         uses: actions/upload-release-asset@v1
@@ -36,6 +58,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./helloworld-0.0.${{ github.run_number }}-Linux.deb
-          asset_name: helloworld-0.0.${{ github.run_number }}-Linux.deb
-          asset_content_type: application/vnd.debian.binary-package
+          asset_path: ${{ runner.os == 'Linux' && './helloworld-0.0.${{ github.run_number }}-Linux.deb' || './helloworld-0.0.${{ github.run_number }}-macos.pkg' }}
+          asset_name: ${{ runner.os == 'Linux' && 'helloworld-0.0.${{ github.run_number }}-Linux.deb' || 'helloworld-0.0.${{ github.run_number }}-macos.pkg' }}
+          asset_content_type: ${{ runner.os == 'Linux' && 'application/vnd.debian.binary-package' || 'application/octet-stream' }}
