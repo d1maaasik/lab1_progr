@@ -1,63 +1,85 @@
-name: 'C++ CI'
-
+name: 'C++ CI' 
+# имя рабочего процесса
 on:
   push:
     branches:
-      - master
+      - lab1
       - feature/github_actions
-
+# ветка lab1 будет запущен при push
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-    permissions: write-all
-
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]  # Указываем операционные системы
-
+# задачи рабочего процесса 
+  create_release: 
+    name: Create release
+    runs-on: ubuntu-latest # определяет тип контейнера для выполнения задачи.
+    outputs: # Определяет выходные параметры задачи.
+      upload_url: ${{ steps.create_release.outputs.upload_url }} # ссылается входной параметр шага Create release
+    permissions: write-all # Определяет разрешения для задачи. Разрешение, которое предоставляет задаче полный доступ на запись к репозиторию и его содержимому
     steps:
-      - uses: actions/checkout@v3
-        with:
+      - name: Create release
+        id: create_release # присваивает уникальный идентификатор шагу
+        uses: actions/create-release@v1
+        env: # Определяет переменные окружения.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Это имя переменной окружения 
+        with: # Определяет параметры для действия.
+          tag_name: ${{ github.run_number}} # указывает тег для создаваемого релиза
+          release_name: Release ${{ github.run_number }} # указывает имя для создаваемого релиза
+          draft: false # указывает, является ли релиз черновиком
+          prerelease: false # указывает, является ли релиз предварительным
+
+  release_assets_ubuntu:
+    name: Release assets
+    needs: create_release # Определяет зависимости задачи.
+    runs-on: ubuntu-latest 
+    permissions: write-all
+    steps:
+      - name: Checkout code # используется для описания действия
+        uses: actions/checkout@v4 #  используется для клонирования репозитория.
+        with:        
           submodules: true
 
-      - name: Install dependencies
-        run: |
-          if [ ${{ runner.os }} == 'Linux' ]; then
-            sudo apt-get update && sudo apt-get install libboost-test-dev -y
-          elif [ ${{ runner.os }} == 'macOS' ]; then
-            brew install boost  # Убедитесь, что Homebrew установлен на macOS
-          fi
+      - run: sudo apt-get update && sudo apt-get install libboost-test-dev -y
+      # Обновляет пакеты и устанавливает библиотеку Boost для тестирования.
+      - run: cmake . -DPATCH_VERSION=${{ github.run_number }} 
 
-      - name: Configure CMake
-        run: cmake . -DPATCH_VERSION=${{ github.run_number }}
+      - run: cmake --build .
 
-      - name: Build
-        run: cmake --build .
+      - run: cmake --build . --target test
 
-      - name: Run Tests
-        run: cmake --build . --target test
+      - run: cmake --build . --target package
 
-      - name: Package
-        run: cmake --build . --target package
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.run_number }}
-          release_name: Release ${{ github.run_number }}
-          draft: false
-          prerelease: false
-
-      - name: Upload Release Asset
+      - name: Upload release assets
         id: upload-release-asset
         uses: actions/upload-release-asset@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ${{ runner.os == 'Linux' && './helloworld-0.0.${{ github.run_number }}-Linux.deb' || './helloworld-0.0.${{ github.run_number }}-macos.pkg' }}
-          asset_name: ${{ runner.os == 'Linux' && 'helloworld-0.0.${{ github.run_number }}-Linux.deb' || 'helloworld-0.0.${{ github.run_number }}-macos.pkg' }}
-          asset_content_type: ${{ runner.os == 'Linux' && 'application/vnd.debian.binary-package' || 'application/octet-stream' }}
+          upload_url: ${{ needs.create_release.outputs.upload_url}}
+          asset_name: helloworld-0.0.${{ github.run_number }}-Linux.zip
+          asset_path: ./helloworld-0.0.${{ github.run_number }}-Linux.zip
+          asset_content_type: application/vnd.debian.binary-package
+
+  release_assets_macos:
+    name: Release assets
+    needs: create_release
+    runs-on: macos-latest
+    permissions: write-all 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - run: brew install boost
+      - run: cmake . -DPATCH_VERSION=${{ github.run_number }}
+      - run: cmake --build .
+      - run: cmake --build . --target test
+      - run: cmake --build . --target package
+      - name: Upload release assets
+        id: upload-release-asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN}}
+        with:
+          upload_url: ${{ needs.create_release.outputs.upload_url}}
+          asset_name: helloworld-0.0.${{ github.run_number }}-Darwin.zip
+          asset_path: ./helloworld-0.0.${{ github.run_number }}-Darwin.zip
+          asset_content_type: application/zip
